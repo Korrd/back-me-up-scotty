@@ -7,8 +7,6 @@ node {
 
       stage("variables setup") {
 
-        env.IMAGE_NAME = "back-me-up-scotty"
-
         env.IMAGE_REPO = "korrd2/back-me-up-scotty"
         env.GITHUB_REPO = "back-me-up-scotty"
 
@@ -26,8 +24,8 @@ node {
       stage("push") {
 
         if (env.BRANCH_NAME == "main") {
-          sh "docker tag '$IMAGE_REPO:$BUILD_NUMBER' '$IMAGE_REPO:$IMAGE_NAME'"
-          sh "docker push '$IMAGE_REPO:$IMAGE_NAME'"
+          sh "docker tag '$IMAGE_REPO:$BUILD_NUMBER' '$IMAGE_REPO:latest'"
+          sh "docker push '$IMAGE_REPO:latest'"
         } else {
           def SANITIZED_BRANCH_NAME = "${sanitizedBranchName(BRANCH_NAME)}"
 
