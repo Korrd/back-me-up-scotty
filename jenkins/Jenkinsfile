@@ -1,0 +1,61 @@
+node {
+
+  timeout(BUILD_TIMEOUT.toInteger()) {
+    try {
+
+      checkout scm
+
+      stage("variables setup") {
+
+        env.IMAGE_NAME = "back-me-up-scotty"
+
+        env.IMAGE_REPO = "korrd2/back-me-up-scotty"
+        env.GITHUB_REPO = "back-me-up-scotty"
+
+        withCredentials([usernamePassword(credentialsId: 'DOCKER', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+          env.DOCKER_USERNAME = "$DOCKER_USERNAME"
+          env.DOCKER_PASSWORD = "$DOCKER_PASSWORD"
+          sh "docker login -u='$DOCKER_USERNAME' -p='$DOCKER_PASSWORD'"
+        }
+      }
+
+      stage("build") {
+        sh "docker build --pull -t '$IMAGE_REPO:$BUILD_NUMBER' ."
+      }
+
+      stage("push") {
+
+        if (env.BRANCH_NAME == "main") {
+          sh "docker tag '$IMAGE_REPO:$BUILD_NUMBER' '$IMAGE_REPO:$IMAGE_NAME'"
+          sh "docker push '$IMAGE_REPO:$IMAGE_NAME'"
+        } else {
+          def SANITIZED_BRANCH_NAME = "${sanitizedBranchName(BRANCH_NAME)}"
+
+          sh "docker tag '$IMAGE_REPO:$BUILD_NUMBER' '$IMAGE_REPO:$SANITIZED_BRANCH_NAME'"
+          sh "docker push '$IMAGE_REPO:$SANITIZED_BRANCH_NAME'"
+        }
+      }
+
+      slackSend color: 'good', message: "Branch `$BRANCH_NAME` from repo `$GITHUB_REPO` has built successfully"
+
+    } catch (err) {
+
+      sh "echo $err"
+      currentBuild.result = 'FAILURE'
+
+      slackSend color: 'bad', message: "*$currentBuild.result*: Branch `$BRANCH_NAME` from repo `$GITHUB_REPO` has failed to build \n - *Link* \n ${BUILD_URL}console \n - *Error Message* ```$err```"
+
+    } finally {
+
+      /* Clean up workspace */
+      deleteDir()
+
+    }
+  }
+}
+
+def sanitizedBranchName(branchName) {
+  // Remove the verb from the branch (add/...)
+  // and replace all dots with dashes
+  "${branchName.split('/')[1].replaceAll('\\.', '-')}"
+}
