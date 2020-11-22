@@ -1,54 +1,60 @@
-# Script for running backup tasks on our server
+# About
+    # Script for running backup tasks on my home server
+    # Coded by Victor M. Martin in Nov-2020 as an excercise for
+    # learning python3 overnight for a do-or-die tech interview
+
 # Q&A
-    # This requires us to mount source and destination dirs.
+    # This requires us to mount source and destination dirs to our container.
     #   - How do we tell it what to backup?
     #       > By having the script receive arguments that tell it what to backup
     #   - How do we run the script?
-    #       > By having a cron job that triggers it when desired
+    #       > By invoking a docker container with params that does the deed
     #   - Why are we doing this inside a container?
-    #       > So we can guarantee that the python env is always as we want it
+    #       > So we can guarantee that the python env is always as we want it,
+    #           as envs on different systems tend to be a bloody mess
     #   - This would be easier with bash. Why are we python'ing it?
-    #       > Because we want to learn python, and the best way to do so is by using it
+    #       > Because we want to learn python3, and the best way to do so is by coding
+    #           overcommented, overengineered crap which applies most of what we learned.
+    #   - Is this meant for production?
+    #       > NO WAY! Don't you dare! It's a newbie script meant to excercise & solidify
+    #           knowledge. As such, is full of flaws and NOT meant for a productive env 
+    #   - Why are comments like this one indented?
+    #       > So you can collapse them and get them out of the way.
 
-# Arguments
-    # 0 = backup.py
-    # 1 = /source/dir_or_file/to/compress
-    # 2 = /destination/file.tar.gz
-    # 3+ = Flags
 
 import os
 from datetime import timedelta
 from sys import argv as args
 from time import time
 
+
 def main(args):
+
+    # Let's get our flags...
     FLAG_HELP = ("--help" in args)
+    if FLAG_HELP:
+        print_help_text()
+        exit(1)
+
     FLAG_OVERWRITE = ("--overwrite" in args)
-    FLAG_DRY_RUN = ("--dry" in args) # for debugging purposes
-    HELP_TEXT = "="*32 + "\n" + "| A wilde python backup script |".center(32) + "\n" + "="*32 + "\n\nUsage: backup.py source_file_or_dir destination_file.tar.gz [flags]\n- Flags must always go after source and destination.\n- Don't forget the .tar.gz on the target filename.\n" + "\n\nFlags:\n--overwrite     Overwrites destination file if it exists\n--help          Prints this help text\n--dry           Dry run, for debugging purposes"
+    FLAG_DRY_RUN = ("--dry" in args)  # for debugging purposes
+    FILES_TO_EXCLUDE = get_argument_value(args=args, flag="--exclude").split(",")
+    OUTPUT_FULLPATH = get_argument_value(args=args, flag="--target")
+    SOURCE_DIR = get_argument_value(args=args, flag="--source")
+    THREADS = get_argument_value(args=args, flag="--threads") or 0
 
-    if (FLAG_HELP or len(args) < 3):
-        print(HELP_TEXT)
+    # ... and do some very basic validation to filter out Layer 8 issues ;)
+    if OUTPUT_FULLPATH == "" or SOURCE_DIR == "":
+        print_help_text()
         exit(1)
 
-    if "--" in args[1] or "--" in args[2]:
-        print(HELP_TEXT)
-        exit(1)
-
-    if not ".tar.gz" in args[2]:
-        print(HELP_TEXT)
+    if not ".tar.gz" in OUTPUT_FULLPATH:
+        print_help_text()
         exit(1)
 
     if FLAG_DRY_RUN:
         print("Running in dry mode...")
     
-    # python3 backup.py ~/Downloads asdasd.tar.gz --dry --overwrite
-    # SOURCE_DIR = os.path.abspath("/Users/vic/Downloads")
-    # OUTPUT_FULLPATH = os.path.abspath("asdasd.tar.gz")
-    # FLAG_DRY_RUN = True  # for debugging purposes
-
-    SOURCE_DIR = os.path.abspath(args[1])
-    OUTPUT_FULLPATH = os.path.abspath(args[2])
     OUTPUT_DIRNAME = os.path.dirname(os.path.abspath(OUTPUT_FULLPATH))
     OUTPUT_FILE_EXISTS = os.path.exists(OUTPUT_FULLPATH)
     OUTPUT_TMPFILE=f"{OUTPUT_FULLPATH}.tmp"
@@ -80,11 +86,11 @@ def main(args):
         print(f"Output file at '{OUTPUT_FULLPATH}' already exists. If you wish to overwrite it, run me with the \"--overwrite\" flag set.")
         exit(1)
 
-    # Compress
+    # Right. Everything seems to be in order. Let's do the deed.
     print(f"Compression started\n - Source:      {SOURCE_DIR}\n - Destination: {OUTPUT_FULLPATH}")
     START_TIME = time()
-    # Compress on temp file
-    compress(source = SOURCE_DIR, destination = OUTPUT_TMPFILE)
+
+    result = compress(source = SOURCE_DIR, destination = OUTPUT_TMPFILE, exclude = FILES_TO_EXCLUDE, threads=THREADS)
     if not FLAG_DRY_RUN:
         # Replace old file with new
         if OUTPUT_FILE_EXISTS:
@@ -95,21 +101,39 @@ def main(args):
 
     END_TIME = time()
 
-    print("Finished.")
+    print(f"Finished with exit code {result}.")
     print(f"Elapsed time: {timedelta(seconds=(END_TIME - START_TIME))}")
     
 
-# Does the compression
-def compress(source, destination):
+def compress(source, destination,threads=0,exclude=list):
     import multiprocessing
-    # Using the native python module, compression will be single-threaded
-    # import tarfile
-    # tarfile.open(destination, "w:gz").add(source)
-    
-    # But if we use pigz, we can use all cores for it
-    THREADS = multiprocessing.cpu_count()
-    print(f"{THREADS} cores detected. Using them all for greater speed")
-    bash_exec(f"tar cf - \"{source}\" | pigz -q -9 - p {THREADS} > \"{destination}\"")
+
+    # This exclude logic gets a list of paths, and proceeds as follows:
+        # > If there is only one item, and that item is empty, then exclude will result in an empty string
+        # > If there is only one valid element, the join will return that element without prefix,
+        #   and the prefix gets added by concatenation
+        # > If there is more than one item in the list, the first item on the list will get its prefix by
+        #   concatenation, while the rest gets it from the join magic (which I totally dislike).
+        #
+        # Yeah, I know, it's dark as fuck, but hey! this is my first ever python script.
+    items_to_exclude = ""
+    if not (len(exclude) == 1 and exclude[0] == ""):
+        items_to_exclude = "--exclude " + " --exclude ".join(exclude)
+
+    # Thread count logic. We want to be sure to get the most performance out of it,
+    # while also NOT murdering the CPU if the user specifies a too high thread count
+    if threads == 0: 
+        threads = multiprocessing.cpu_count()
+        print(f" - No thread count specified by user and {threads} cores detected. Going trigger-happy!")
+    elif threads > multiprocessing.cpu_count():
+        threads = multiprocessing.cpu_count()
+        print( f" - Specified thread count is higher than this system's core count. I will use {threads} instead.")
+    else:
+        print( f" - I Will use {threads} threads as specified by the user")
+
+    # As the native python tarfile library is single-threaded,
+    # we will use pigz, so we can darle mas gasolina B-)
+    return bash_exec(f"tar cf {items_to_exclude} - \"{source}\" | pigz -9 - p {threads} > \"{destination}\"")
 
 
 def bash_exec(command=""):
@@ -118,7 +142,32 @@ def bash_exec(command=""):
   return sp.call(command, shell=True)
 
 
-# Entrypoint --- PLACE ALWAYS AT THE END OF THE FILE
+def print_help_text():
+    print("="*32)
+    print("| A wilde python backup script |".center(32))
+    print("="*32)
+    print("\n\nUsage: backup.py --source=source_file_or_dir --target=destination_file.tar.gz [flags]")
+    print("- Don't forget the .tar.gz on the target filename.")
+    print("\n\nFlags:")
+    print(f"--dry                                          Dry run, for debugging purposes")
+    print("--exclude=dir1[,file1,dir2,...,dirN,fileN]     Exclude specific stuff from target file")
+    print(f"--help                                         Prints this help text")
+    print("--overwrite                                    Overwrites destination file if it exists instead of aborting")
+    print("--threads                                      Specifies amount of parallel threads for multicore systems. If unset, I will use them all")
+
+
+def get_argument_value(args, flag, separator="="):
+    for element in args:
+        if element.startswith(flag):
+            # NOTES
+                # Return the right side of the argument after the separator
+                # rsplit = split on last occurence
+                # split = split on first occurence
+                # partition = splits into three elemens, containing left, separator and right sides
+            return element.split(separator)[1]
+    return "" # Return empty if not found
+
+
+# Entrypoint --- ALWAYS PLACE AT EOF
 if __name__ == "__main__":
     main(args)
-# ==================================================

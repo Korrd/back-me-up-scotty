@@ -1,8 +1,49 @@
 # back-me-up-scotty
-A service to automate various backup tasks that must be run on my home server
+A script to automate various backup tasks that must be run on my home server
 
 ---
 
 ## What am I?
+Script for running backup tasks on my home server.
+Coded by Victor M. Martin in Nov-2020 as an excercise for learning python3 overnight for a do-or-die tech interview
 
-Since learning python overnight for a tech interview, I decided to automate some of the server's tasks in order to further level up my mad python skillz. Henceforth, this project was born.
+## Q&A
+
+This requires us to mount source and destination dirs to our container
+  - How do we tell it what to backup?
+      > By having the script receive arguments that tell it what to backup
+  - How do we run the script?
+      > By invoking a docker container with params that does the deed
+  - Why are we doing this inside a container?
+      > So we can guarantee that the python env is always as we want it,
+      > as envs on different systems tend to be a bloody mess
+  - This would be easier with bash. Why are we python'ing it?
+      > Because we want to learn python3, and the best way to do so is by coding
+      > overcommented, overengineered crap which applies most of what we learned.
+  - Is this meant for production?
+      > NO WAY! Don't you dare! It's a newbie script meant to excercise & solidify
+      > knowledge. As such, is full of flaws and NOT meant for a productive env 
+  - Why are comments like this one indented?
+      > So you can collapse them and get them out of the way.
+
+## Usage
+
+```bash
+docker run -d --rm \
+    --name a-backup-task \
+    -v /source/path/on/host:/tmp/source/path/on/container \
+    -v /target/path/on/host:/tmp/target/path/on/container \
+    korrd2/back-me-up-scotty:latest \
+    python /usr/src/backup.py --source=/tmp/source/path/on/container --target=/tmp/target/path/on/container/filename.tar.gz \
+    [insert flags here]
+```
+
+### Flags
+```bash
+--dry                                          Dry run, for debugging purposes
+--exclude=dir1[,file1,dir2,...,dirN,fileN]     Exclude specific stuff from target file
+--help                                         Prints this help text
+--overwrite                                    Overwrites destination file if it exists instead of aborting
+--threads                                      Specifies amount of parallel threads for multicore systems. If unset, I will use them all
+
+```
