@@ -2,25 +2,7 @@
     # Script for running backup tasks on my home server
     # Coded by Victor M. Martin in Nov-2020 as an excercise for
     # learning python3 overnight for a do-or-die tech interview
-
-# Q&A
-    # This requires us to mount source and destination dirs to our container.
-    #   - How do we tell it what to backup?
-    #       > By having the script receive arguments that tell it what to backup
-    #   - How do we run the script?
-    #       > By invoking a docker container with params that does the deed
-    #   - Why are we doing this inside a container?
-    #       > So we can guarantee that the python env is always as we want it,
-    #           as envs on different systems tend to be a bloody mess
-    #   - This would be easier with bash. Why are we python'ing it?
-    #       > Because we want to learn python3, and the best way to do so is by coding
-    #           overcommented, overengineered crap which applies most of what we learned.
-    #   - Is this meant for production?
-    #       > NO WAY! Don't you dare! It's a newbie script meant to excercise & solidify
-    #           knowledge. As such, is full of flaws and NOT meant for a productive env 
-    #   - Why are comments like this one indented?
-    #       > So you can collapse them and get them out of the way.
-
+    # https://github.com/Korrd/back-me-up-scotty
 
 import os
 from datetime import timedelta
@@ -122,18 +104,18 @@ def compress(source, destination,threads=0,exclude=list):
 
     # Thread count logic. We want to be sure to get the most performance out of it,
     # while also NOT murdering the CPU if the user specifies a too high thread count
-    if threads == 0: 
+    if int(threads) == 0: 
         threads = multiprocessing.cpu_count()
-        print(f" - No thread count specified by user and {threads} cores detected. Going trigger-happy!")
-    elif threads > multiprocessing.cpu_count():
+        print(f" - No thread count specified by user and {str(threads)} cores detected. Going trigger-happy!")
+    elif int(threads) > multiprocessing.cpu_count():
         threads = multiprocessing.cpu_count()
-        print( f" - Specified thread count is higher than this system's core count. I will use {threads} instead.")
+        print( f" - Specified thread count is higher than this system's core count. I will use {str(threads)} instead.")
     else:
-        print( f" - I Will use {threads} threads as specified by the user")
+        print( f" - I Will use {str(threads)} threads as specified by the user")
 
     # As the native python tarfile library is single-threaded,
     # we will use pigz, so we can darle mas gasolina B-)
-    return bash_exec(f"tar cf {items_to_exclude} - \"{source}\" | pigz -9 - p {threads} > \"{destination}\"")
+    return bash_exec(f"tar cf {items_to_exclude} - \"{source}\" | pigz -9 -p {threads} > \"{destination}\"")
 
 
 def bash_exec(command=""):
@@ -159,11 +141,6 @@ def print_help_text():
 def get_argument_value(args, flag, separator="="):
     for element in args:
         if element.startswith(flag):
-            # NOTES
-                # Return the right side of the argument after the separator
-                # rsplit = split on last occurence
-                # split = split on first occurence
-                # partition = splits into three elemens, containing left, separator and right sides
             return element.split(separator)[1]
     return "" # Return empty if not found
 

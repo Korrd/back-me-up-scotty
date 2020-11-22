@@ -22,7 +22,7 @@ This requires us to mount source and destination dirs to our container
       > overcommented, overengineered crap which applies most of what we learned.
   - Is this meant for production?
       > NO WAY! Don't you dare! It's a newbie script meant to excercise & solidify
-      > knowledge. As such, is full of flaws and NOT meant for a productive env 
+      > knowledge. As such, it is full of flaws and NOT meant for a productive env 
 
 ## Usage
 
@@ -51,3 +51,4 @@ docker run -d --rm \
 - Handle args without the need for an "=" for key=value differentiation and arg delimitation
 - Handle args with paths that contain spaces
 - Write some tests on build time
+- Validate flag values some more
