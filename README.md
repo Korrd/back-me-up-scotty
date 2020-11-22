@@ -23,8 +23,6 @@ This requires us to mount source and destination dirs to our container
   - Is this meant for production?
       > NO WAY! Don't you dare! It's a newbie script meant to excercise & solidify
       > knowledge. As such, is full of flaws and NOT meant for a productive env 
-  - Why are comments like this one indented?
-      > So you can collapse them and get them out of the way.
 
 ## Usage
 
@@ -47,3 +45,9 @@ docker run -d --rm \
 --threads                                      Specifies amount of parallel threads for multicore systems. If unset, I will use them all
 
 ```
+
+## TODO
+- Implement shorthanded argument flags
+- Handle args without the need for an "=" for key=value differentiation and arg delimitation
+- Handle args with paths that contain spaces
+- Write some tests on build time
